@@ -36,7 +36,7 @@ Create a [Pull Request](https://docs.github.com/en/pull-requests/collaborating-w
 
 The following workflow listens to your PR comments (either created, or edited) and then creates a new Buildkite build based on the command chosen.
 
-Note: `buildkite-pipeline` is optional, however if you intend to use the `/bk pipeline` slash command, it is required.
+Note: `buildkite_pipeline` is optional, however if you intend to use the `/bk pipeline` slash command, it is required.
 
 ```yaml
 name: Buildkite Pull Request Commands
