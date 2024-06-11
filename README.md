@@ -55,7 +55,7 @@ jobs:
     if: github.event.issue.pull_request != null
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Trigger Buildkite Pipeline
       uses: buildkite/trigger-pipeline-commands@v0.1.0
