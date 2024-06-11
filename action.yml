@@ -1,0 +1,100 @@
+name: 'Buildkite Pull Request Commands'
+description: 'Triggers a Buildkite pipeline when a PR comment contains specific slash commands'
+author: 'Jared Mariash <jared@buildkite.com>'
+inputs:
+  buildkite_api_token:
+    description: 'Buildkite API Token'
+    required: true
+  buildkite_org:
+    description: 'Buildkite organization slug'
+    required: true
+  github_token:
+    description: 'GitHub Token (provided by default)'
+    required: true
+  buildkite_pipeline:
+    description: 'Buildkite pipeline slug'
+    required: false
+outputs: {}
+runs:
+  using: 'composite'
+  steps:
+    - name: Process PR Comment
+      id: process_comment
+      shell: bash
+      run: |
+        COMMENT_BODY=$(echo "${{ github.event.comment.body }}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if echo "$COMMENT_BODY" | grep -qP '^/bk trigger [a-zA-Z0-9-_]+$'; then
+          COMMAND_TYPE="trigger"
+          PIPELINE_SLUG=$(echo "$COMMENT_BODY" | grep -oP '(?<=/bk trigger )[a-zA-Z0-9-_]+')
+          echo "PIPELINE_SLUG=$PIPELINE_SLUG" >> $GITHUB_ENV
+        elif echo "$COMMENT_BODY" | grep -qP '^/bk pipeline .+$'; then
+          COMMAND_TYPE="pipeline"
+          PIPELINE_FILE=$(echo "$COMMENT_BODY" | grep -oP '(?<=/bk pipeline ).+')
+          echo "PIPELINE_FILE=$PIPELINE_FILE" >> $GITHUB_ENV
+        else
+          echo "Invalid command."
+          exit 1
+        fi
+        echo "COMMAND_TYPE=$COMMAND_TYPE" >> $GITHUB_ENV
+        
+    - name: Extract PR information
+      id: extract_info
+      shell: bash
+      run: |
+        PR_URL=$(jq -r .issue.pull_request.url "$GITHUB_EVENT_PATH")
+        echo "Fetching PR details from $PR_URL"
+        PR_DETAILS=$(curl -s -H "Authorization: token ${{ inputs.github_token }}" "$PR_URL")
+        echo "PR details fetched from GitHub API."
+        PR_BRANCH=$(echo "$PR_DETAILS" | jq -r .head.ref)
+        PR_COMMIT=$(echo "$PR_DETAILS" | jq -r .head.sha)
+        PR_BASE_BRANCH=$(echo "$PR_DETAILS" | jq -r .base.ref)
+        PR_REPO_URL=$(echo "$PR_DETAILS" | jq -r .head.repo.clone_url)
+        echo "Extracted branch: $PR_BRANCH"
+        echo "Extracted commit: $PR_COMMIT"
+        echo "Extracted base branch: $PR_BASE_BRANCH"
+        echo "Extracted repo URL: $PR_REPO_URL"
+        echo "Sending extractions to GitHub Env"
+        echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_ENV
+        echo "PR_COMMIT=$PR_COMMIT" >> $GITHUB_ENV
+        echo "PR_BASE_BRANCH=$PR_BASE_BRANCH" >> $GITHUB_ENV
+        echo "PR_REPO_URL=$PR_REPO_URL" >> $GITHUB_ENV
+        echo "Extractions assigned to GitHub Env"
+
+    - name: Trigger Buildkite Pipeline
+      if: env.COMMAND_TYPE == 'trigger'
+      uses: buildkite/trigger-pipeline-action@v2.1.0
+      with:
+        buildkite_api_access_token: ${{ inputs.buildkite_api_token }}
+        pipeline: ${{ inputs.buildkite_org }}/${{ env.PIPELINE_SLUG }}
+        branch: ${{ env.PR_BRANCH }}
+        commit: ${{ env.PR_COMMIT }}
+        message: ":buildkite:+:github: Triggered by /bk trigger command comment in PR #${{ github.event.issue.number }}"
+        build_env_vars: |
+          {
+            "TRIGGERED_FROM_GHA_SLASH_COMMAND": "true",
+            "BUILDKITE_PULL_REQUEST": "${{ github.event.issue.number }}",
+            "BUILDKITE_PULL_REQUEST_BASE_BRANCH": "${{ env.PR_BASE_BRANCH }}",
+            "BUILDKITE_PULL_REQUEST_REPO": "${{ env.PR_REPO_URL }}"
+          }
+        ignore_pipeline_branch_filter: true
+        send_pull_request: true
+
+    - name: Change Buildkite Pipeline YAML
+      if: env.COMMAND_TYPE == 'pipeline'
+      uses: buildkite/trigger-pipeline-action@v2.1.0
+      with:
+        buildkite_api_access_token: ${{ inputs.buildkite_api_token }}
+        pipeline: ${{ inputs.buildkite_org }}/${{ inputs.buildkite_pipeline }}
+        branch: ${{ env.PR_BRANCH }}
+        commit: ${{ env.PR_COMMIT }}
+        message: ":buildkite:+:github: Triggered by /bk pipeline command comment in PR #${{ github.event.issue.number }}, using yml: ${{ env.PIPELINE_FILE }}"
+        build_env_vars: |
+          {
+            "TRIGGERED_FROM_GHA_SLASH_COMMAND": "true",
+            "BUILDKITE_PULL_REQUEST": "${{ github.event.issue.number }}",
+            "BUILDKITE_PULL_REQUEST_BASE_BRANCH": "${{ env.PR_BASE_BRANCH }}",
+            "BUILDKITE_PULL_REQUEST_REPO": "${{ env.PR_REPO_URL }}",
+            "PIPELINE_FILE": "${{ env.PIPELINE_FILE }}"
+          }
+        ignore_pipeline_branch_filter: true
+        send_pull_request: true
