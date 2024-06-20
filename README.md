@@ -5,9 +5,10 @@ A [GitHub Action](https://github.com/actions) for triggering a build on a [Build
 This action uses the [Buildkite Trigger Pipeline Action](https://github.com/buildkite/trigger-pipeline-action/) as a base to send the builds to Buildkite.
 
 ## Features
-It supports two commands:
+It supports three commands:
 - `/bk trigger <pipeline-slug>`
 - `/bk pipeline <file.yml>`
+- `/bk unblock`
 
 ## Usage
 
@@ -29,6 +30,7 @@ Create a [Pull Request](https://docs.github.com/en/pull-requests/collaborating-w
 
 - `/bk trigger <pipeline-slug>` will trigger a build the PR with it's details on a **new** pipeline based on whatever `pipeline-slug` is provided, and is valid in your Organization.
 - `/bk pipeline <file.yml>` will trigger a build the PR with it's details on the **existing** pipeline (via the `buildkite_pipeline` input parameter in the workflow)  with a **new** yaml file specified in the command. The yaml file must exist either in the repo, or the PR.
+- `/bk unblock` will unblock the latest build **(that has no inputs required)** associated with the PR. This will not unblock builds that require direct input currently.
 
 ## Configuration Options
 
