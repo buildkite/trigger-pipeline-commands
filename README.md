@@ -11,7 +11,7 @@ It supports two commands:
 
 ## Usage
 
-Create a [Buildkite API Access Token](https://buildkite.com/docs/apis/rest-api#authentication) with `write_builds` scope, and save it to your GitHub repository’s **Settings → Secrets** as `BUILDKITE_API_TOKEN`. Then you can configure your Actions workflow with your Buildkite `org-slug` and `pipeline-slug`.
+Create a [Buildkite API Access Token](https://buildkite.com/docs/apis/rest-api#authentication) with `read_builds` & `write_builds` scope, and save it to your GitHub repository’s **Settings → Secrets** as `BUILDKITE_API_TOKEN`. Then you can configure your Actions workflow with your Buildkite `org-slug` and `pipeline-slug`.
 
 Update your [Pipeline YAML Steps](https://buildkite.com/docs/tutorials/pipeline-upgrade#using-yaml-steps-for-new-pipelines) to include the following in the UI steps editor:
 ```yaml
