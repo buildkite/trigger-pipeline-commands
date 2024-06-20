@@ -31,6 +31,8 @@ runs:
           COMMAND_TYPE="pipeline"
           PIPELINE_FILE=$(echo "$COMMENT_BODY" | grep -oP '(?<=/bk pipeline ).+')
           echo "PIPELINE_FILE=$PIPELINE_FILE" >> $GITHUB_ENV
+        elif echo "$COMMENT_BODY" | grep -qP '^/bk unblock$'; then
+          COMMAND_TYPE="unblock"
         else
           echo "Invalid command."
           exit 1
@@ -98,3 +100,35 @@ runs:
           }
         ignore_pipeline_branch_filter: true
         send_pull_request: true
+
+    - name: Fetch Latest Build ID and Job ID
+      if: env.COMMAND_TYPE == 'unblock'
+      shell: bash
+      run: |
+        LATEST_BUILD=$(curl -s -H "Authorization: Bearer ${{ inputs.buildkite_api_token }}" "https://api.buildkite.com/v2/organizations/${{ inputs.buildkite_org }}/pipelines/${{ inputs.buildkite_pipeline }}/builds?branch=${{ env.PR_BRANCH }}&state=blocked")
+        echo "Latest build response: $LATEST_BUILD"
+        # Accessing the first element in the array
+        BUILD_NUMBER=$(echo "$LATEST_BUILD" | jq -r '.[0].number')
+        JOB_ID=$(echo "$LATEST_BUILD" | jq -r '.[0].jobs[] | select(.state == "blocked") | .id')
+        if [ "$BUILD_NUMBER" == "null" ] || [ "$JOB_ID" == "null" ]; then
+          echo "No running builds or blocked jobs found for pipeline ${{ inputs.buildkite_pipeline }} on branch ${{ env.PR_BRANCH }}"
+          exit 1
+        fi
+        echo "Fetched latest build number: $BUILD_NUMBER"
+        echo "Fetched blocked job ID: $JOB_ID"
+        echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+        echo "JOB_ID=$JOB_ID" >> $GITHUB_ENV
+
+    - name: Unblock Buildkite Job
+      if: env.COMMAND_TYPE == 'unblock'
+      shell: bash
+      run: |
+        curl -X PUT "https://api.buildkite.com/v2/organizations/${{ inputs.buildkite_org }}/pipelines/${{ inputs.buildkite_pipeline }}/builds/${{ env.BUILD_NUMBER }}/jobs/${{ env.JOB_ID }}/unblock" \
+        -H "Authorization: Bearer ${{ inputs.buildkite_api_token }}" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "fields": {
+            "name": "GitHub Action",
+            "email": "github@action.com"
+          }
+        }'
